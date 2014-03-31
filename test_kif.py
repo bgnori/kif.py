@@ -23,6 +23,8 @@ class TestParser(unittest.TestCase):
         self.assertEqual(7, got.fromY)
         self.assertEqual(u'歩', got.piece)
         self.assertFalse(got.promote)
+        self.assertFalse(got.timeup)
+        self.assertFalse(got.resign)
 
     def test_feed_2(self):
         p = kif.Parser()
@@ -36,6 +38,8 @@ class TestParser(unittest.TestCase):
         self.assertEqual(2, got.fromY)
         self.assertEqual(u'飛', got.piece)
         self.assertFalse(got.promote)
+        self.assertFalse(got.timeup)
+        self.assertFalse(got.resign)
 
     def test_feed_promotion(self):
         p = kif.Parser()
@@ -49,6 +53,8 @@ class TestParser(unittest.TestCase):
         self.assertEqual(5, got.fromY)
         self.assertEqual(u'桂', got.piece)
         self.assert_(got.promote)
+        self.assertFalse(got.timeup)
+        self.assertFalse(got.resign)
 
     def test_feed_same_a(self):
         p = kif.Parser()
@@ -70,6 +76,8 @@ class TestParser(unittest.TestCase):
         self.assertEqual(8, got.fromY)
         self.assertEqual(u'飛', got.piece)
         self.assertFalse(got.promote)
+        self.assertFalse(got.timeup)
+        self.assertFalse(got.resign)
 
     def test_feed_same_b(self):
         p = kif.Parser()
@@ -91,6 +99,8 @@ class TestParser(unittest.TestCase):
         self.assertEqual(7, got.fromY)
         self.assertEqual(u'成桂', got.piece)
         self.assertFalse(got.promote)
+        self.assertFalse(got.timeup)
+        self.assertFalse(got.resign)
 
 
     def test_feed_place(self):
@@ -106,6 +116,8 @@ class TestParser(unittest.TestCase):
         self.assertIsNone(got.fromY)
         self.assertEqual(u'歩', got.piece)
         self.assertFalse(got.promote)
+        self.assertFalse(got.timeup)
+        self.assertFalse(got.resign)
 
     def test_feed_resign(self):
         p = kif.Parser()
@@ -119,8 +131,23 @@ class TestParser(unittest.TestCase):
         self.assertIsNone(got.fromY)
         self.assertIsNone(got.piece)
         self.assertFalse(got.promote)
+        self.assertFalse(got.timeup)
         self.assert_(got.resign)
 
+    def test_feed_timeup(self):
+        p = kif.Parser()
+        uline = u" 131 切れ負け   ( 0:2/)"
+        got = p.feed(uline)
+        self.assertIsNotNone(got)
+        self.assertEqual(131, got.nth)
+        self.assertIsNone(got.toX)
+        self.assertIsNone(got.toY)
+        self.assertIsNone(got.fromX)
+        self.assertIsNone(got.fromY)
+        self.assertIsNone(got.piece)
+        self.assertFalse(got.promote)
+        self.assertFalse(got.resign)
+        self.assert_(got.timeup)
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,6 +42,7 @@ regexp = re.compile(WSS+ ur"""(?P<nth>\d+)"""
             ur"""(?P<place>打)?"""
             ur"""(?P<movefrom>\((?P<fromX>\d)(?P<fromY>\d)\))?"""
             ur"""(?P<resign>投了)?"""
+            ur"""(?P<timeup>切れ負け)?"""
             + WSS + \
             ur"""(\("""
                 ur"""\s*(?P<minutes>\d+):(?P<seconds>\d+)"""
@@ -72,6 +73,7 @@ class Move:
     成りを行ったか否か move.promote: bool
     同~かであるか否か  move.same: bool
     投了であるか否か   move.resign: bool
+    切れ負けであるか否か move.timeup: bool
     持ち駒を打ったか否か move.place: bool
     """
 
@@ -85,6 +87,8 @@ class Move:
         if name in ('toX', 'toY'):
             if self.resign:
                 return None
+            if self.timeup:
+                return None
             if self.same:
                 assert value is None
                 assert isinstance(self.prev, Move)
@@ -95,11 +99,13 @@ class Move:
         elif name in ('fromX', 'fromY'):
             if self.resign:
                 return None
+            if self.timeup:
+                return None
             if self.place:
                 assert value is None
                 return None
             return int(value)
-        elif name in ('promote', 'same', 'place'):
+        elif name in ('promote', 'same', 'place', 'resign', 'timeup'):
             return bool(value)
         else:
             return value
@@ -121,6 +127,7 @@ class Parser:
 if __name__ == "__main__":
     import sys
     import codecs
+    sys.stdout = codecs.getwriter('utf_8')(sys.stdout)
     with codecs.open(sys.argv[2], 'r', encoding=sys.argv[1]) as f:
         p = Parser()
         for uline in f:
@@ -129,6 +136,8 @@ if __name__ == "__main__":
             if m is not None:
                 if m.resign:
                     print u"%3d resign"%(m.nth)
+                elif m.timeup:
+                    print u"%3d timeup"%(m.nth)
                 elif m.place:
                     print u"%3d %4s (持駒) => (%1d,%1d) %s"%\
                             (m.nth, m.piece, m.toX, m.toY, m.promote)
