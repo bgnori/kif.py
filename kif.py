@@ -11,6 +11,8 @@ class Parser:
     def __init__(self):
         self.encoding = 'utf8'
         pass
+    def feed(self, line):
+        return None
 
 
 
