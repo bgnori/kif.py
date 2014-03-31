@@ -30,7 +30,7 @@ To Do:
 import re
 
 WSS = ur"""[ \t\v　]*""" #最後は全角スペース!
-regexp = re.compile(WSS+ ur"""(?P<nth>\d+)"""
+MOVE = re.compile(WSS+ ur"""(?P<nth>\d+)"""
             + WSS + \
             ur"""(?P<moveto>"""
                 ur"""((?P<toX>[１２３４５６７８９])(?P<toY>[一二三四五六七八九]))"""
@@ -51,9 +51,24 @@ regexp = re.compile(WSS+ ur"""(?P<nth>\d+)"""
             ur"""\))"""
             )
 
+HEADER = re.compile(
+    ur"""(開始日時：(?P<datetime_year>\d\d\d\d)/(?P<datetime_month>\d\d)/(?P<datetime_day>\d\d))"""
+    ur"""|"""
+    ur"""(場所：(?P<venue>.*$))"""
+    ur"""|"""
+    ur"""(?P<time_control>持ち時間：(?P<tc_initial>\d+)分\+(?P<tc_post>\d+)秒)"""
+    ur"""|"""
+    ur"""(手合割：(P?<handicap>.*$))"""
+    ur"""|"""
+    ur"""(先手：(P?<white>\w+))"""
+    ur"""|"""
+    ur"""(後手：(P?<black>\w+))"""
+    )
+
 kanji2int = dict(
         zip(u"１２３４５６７８９", range(1, 10)) 
         + zip(u"一二三四五六七八九", range(1, 10)))
+
 
 
 class Move:
@@ -114,13 +129,28 @@ class Move:
 class Parser:
     def __init__(self):
         self.prev = None
+        self.root = []
+        self.headers = {}
+
+    def parse(self, f):
+        for uline in f:
+            m = self.feed(uline)
+            if m is not None:
+                self.root.append(m)
 
     def feed(self, uline):
-        match = regexp.match(uline)
+        match = MOVE.match(uline)
         if match is not None:
             move = Move(match.groupdict(), self.prev)
             self.prev = move
             return move
+        match = HEADER.match(uline)
+        if match is not None:
+            d = match.groupdict()
+            for k, v in d.items():
+                if v is not None:
+                    self.headers[k] = v
+            return None
         return None
 
 
@@ -130,21 +160,18 @@ if __name__ == "__main__":
     sys.stdout = codecs.getwriter('utf_8')(sys.stdout)
     with codecs.open(sys.argv[2], 'r', encoding=sys.argv[1]) as f:
         p = Parser()
-        for uline in f:
-            print uline
-            m = p.feed(uline)
-            if m is not None:
-                if m.resign:
-                    print u"%3d resign"%(m.nth)
-                elif m.timeup:
-                    print u"%3d timeup"%(m.nth)
-                elif m.place:
-                    print u"%3d %4s (持駒) => (%1d,%1d) %s"%\
-                            (m.nth, m.piece, m.toX, m.toY, m.promote)
-                else:
-                    print u"%3d %4s (%1d,%1d)  => (%1d,%1d) %s"%\
+        p.parse(f)
+        print p.headers
+        for m in p.root:
+            if m.resign:
+                print u"%3d resign"%(m.nth)
+            elif m.timeup:
+                print u"%3d timeup"%(m.nth)
+            elif m.place:
+                print u"%3d %4s (持駒) => (%1d,%1d) %s"%\
+                        (m.nth, m.piece, m.toX, m.toY, m.promote)
+            else:
+                print u"%3d %4s (%1d,%1d)  => (%1d,%1d) %s"%\
                             (m.nth, m.piece, m.fromX, m.fromY, m.toX, m.toY, m.promote)
-
-
 
 
