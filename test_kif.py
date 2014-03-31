@@ -2,10 +2,14 @@
 # -*- coding=utf8 -*-
 
 import unittest
+import codecs
 
+import kif
 
 class TestParser(unittest.TestCase):
-    pass
+    def test_new(self):
+        p = kif.Parser()
+        self.assertEqual(codecs.lookup('utf8'), codecs.lookup(p.encoding))
 
 
 if __name__ == "__main__":
