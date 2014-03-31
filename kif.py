@@ -3,7 +3,28 @@
 
 
 """
-thanks to http://openlabo.blogspot.jp/2013/09/blog-post_16.html
+概要:
+柿木将棋フォーマットをparseするライブラリです.
+将棋やる人は日本語読めるだろうから日本語で書いています.
+
+使い方
+
+>>> import kif
+>>> p = kif.Parser()
+>>> with <処理したいkifファイルを開く> as f
+        for line in f:
+            m = p.feed(line)
+            <指し手の表現であるMoveのインスタンスを使って処理をする>
+
+
+正規表現とか仕様に関して次のページを起点に作成を行った.
+御礼申し上げます.
+http://openlabo.blogspot.jp/2013/09/blog-post_16.html
+
+To Do:
+ * ヘッダへの対応
+ * 変化分岐への対応
+
 """
 
 import re
@@ -22,7 +43,11 @@ regexp = re.compile(WSS+ ur"""(?P<nth>\d+)"""
             ur"""(?P<movefrom>\((?P<fromX>\d)(?P<fromY>\d)\))?"""
             ur"""(?P<resign>投了)?"""
             + WSS + \
-            ur"""(\(\s*(?P<minutes>\d+):(?P<seconds>\d+/)\))"""
+            ur"""(\("""
+                ur"""\s*(?P<minutes>\d+):(?P<seconds>\d+)"""
+                ur"""/"""
+                ur"""((?P<hh>\d\d):(?P<mm>\d\d):(?P<ss>\d\d))?"""
+            ur"""\))"""
             )
 
 kanji2int = dict(
@@ -32,7 +57,11 @@ kanji2int = dict(
 
 class Move:
     u"""
-    >>> move = Move(d, prev)
+    ユーザは参照するモノ.
+    ユーザが直接作ることはないです.
+
+    公開インターフェース
+
     手数 move.nth: int
     コマの種類 move.piece: unicode string 
         歩, 香, 桂, 銀, 金, 角, 飛, 王, 玉, と, 成香, 成桂, 成銀, 馬, 竜のいづれか
@@ -86,7 +115,27 @@ class Parser:
             move = Move(match.groupdict(), self.prev)
             self.prev = move
             return move
-        assert False
         return None
+
+
+if __name__ == "__main__":
+    import sys
+    import codecs
+    with codecs.open(sys.argv[2], 'r', encoding=sys.argv[1]) as f:
+        p = Parser()
+        for uline in f:
+            print uline
+            m = p.feed(uline)
+            if m is not None:
+                if m.resign:
+                    print u"%3d resign"%(m.nth)
+                elif m.place:
+                    print u"%3d %4s (持駒) => (%1d,%1d) %s"%\
+                            (m.nth, m.piece, m.toX, m.toY, m.promote)
+                else:
+                    print u"%3d %4s (%1d,%1d)  => (%1d,%1d) %s"%\
+                            (m.nth, m.piece, m.fromX, m.fromY, m.toX, m.toY, m.promote)
+
+
 
 
