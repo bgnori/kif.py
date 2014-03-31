@@ -8,7 +8,7 @@ thanks to http://openlabo.blogspot.jp/2013/09/blog-post_16.html
 
 import re
 
-WSS = ur"""[ \t\v　]*"""
+WSS = ur"""[ \t\v　]*""" #最後は全角スペース!
 regexp = re.compile(WSS+ ur"""(?P<nth>\d+)"""
             + WSS + \
             ur"""(?P<moveto>"""
@@ -30,20 +30,22 @@ kanji2int = dict(
         + zip(u"一二三四五六七八九", range(1, 10)))
 
 
-u"""
-piece2id>
-    歩
-    香
-    桂
-    銀
-    金
-    角
-    飛
-    王
-    玉
-    と馬竜)?"""
-
 class Move:
+    u"""
+    >>> move = Move(d, prev)
+    手数 move.nth: int
+    コマの種類 move.piece: unicode string 
+        歩, 香, 桂, 銀, 金, 角, 飛, 王, 玉, と, 成香, 成桂, 成銀, 馬, 竜のいづれか
+    コマの到着X座標 move.toX: int or None if self.resign
+    コマの到着Y座標 move.toY: int or None if self.resign
+    コマの出発X座標 move.fromX: int or None if self.resign or self.place
+    コマの出発Y座標 move.fromY: int or None if self.resign or self.place
+    成りを行ったか否か move.promote: bool
+    同~かであるか否か  move.same: bool
+    投了であるか否か   move.resign: bool
+    持ち駒を打ったか否か move.place: bool
+    """
+
     def __init__(self, matchdict, prev):
         assert isinstance(matchdict, dict)
         self.matchdict = matchdict
@@ -76,7 +78,6 @@ class Move:
 
 class Parser:
     def __init__(self):
-        self.encoding = 'utf8'
         self.prev = None
 
     def feed(self, uline):

@@ -9,7 +9,7 @@ import kif
 class TestParser(unittest.TestCase):
     def test_new(self):
         p = kif.Parser()
-        self.assertEqual(codecs.lookup('utf8'), codecs.lookup(p.encoding))
+        self.assertIsNone(p.prev)
 
     def test_feed_1(self):
         p = kif.Parser()
