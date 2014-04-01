@@ -152,55 +152,69 @@ class Move:
         else:
             return value
 
-
-class Parser:
-    def __init__(self):
-        self.prev = None
-        self.moves = {}
+class Line:
+    def __init__(self, branch_from):
+        self.branch_from = branch_from
         self.head = None
-        self.mainline_closed = False
-        self.headers = {}
+        self.moves = {}
+        self.prev = None
+        self.is_closed = False
 
-    @property
-    def in_mainline(self):
-        return not self.mainline_closed
+    def add_comment(self, ustr):
+        assert isinstance(ustr, unicode)
+        self.prev.comment.append(ustr)
+
+    def add_move(self, d):
+        move = Move(d, self.prev)
+        assert isinstance(move, Move)
+        self.prev = move
+        if self.head is None:
+            self.head = move
+        if move.resign or move.illeagal or move.timeup:
+            self.is_closed = True
+        self.moves[move.nth] = move
+        return move
 
     def __iter__(self):
         next = self.head
         while isinstance(next, Move):
             yield next
             nth = getattr(next, "nth", None)
-            print nth
             if nth is not None:
                 next = self.moves.get(next.nth+1, None)
             else:
                 break
 
 
+class Parser:
+    def __init__(self):
+        self.lines = dict(mainline=Line(None))
+        self.headers = {}
+        self.current_line_name = 'mainline'
+
+    @property
+    def current_line(self):
+        return self.lines[self.current_line_name]
+
     def parse(self, f):
         for uline in f:
             self.feed(uline)
 
     def feed(self, uline):
-        match = COMMENT.match(uline)
-        if match is not None:
-            self.prev.comment.append(match.group('comment'))
+        line = self.current_line
+
+        found = COMMENT.match(uline)
+        if found is not None:
+            line.add_comment(found.group('comment'))
             return None
 
-        match = MOVE.match(uline)
-        if match is not None:
-            move = Move(match.groupdict(), self.prev)
-            self.prev = move
-            if self.head is None:
-                self.head = move
-            if self.in_mainline:
-                self.moves[move.nth] = move
-            if move.resign or move.illeagal or move.timeup:
-                self.mainline_closed = True
-            return move
-        match = HEADER.match(uline)
-        if match is not None:
-            d = match.groupdict()
+        found = MOVE.match(uline)
+        if found is not None:
+            return line.add_move(found.groupdict())
+
+        found = HEADER.match(uline)
+        if found is not None:
+            d = found.groupdict()
             for k, v in d.items():
                 if v is not None:
                     self.headers[k] = v
@@ -216,7 +230,7 @@ if __name__ == "__main__":
         p = Parser()
         p.parse(f)
         print p.headers
-        print p.moves
+        print p.mainline
         for m in p:
             print u"%s"%(m,)
 

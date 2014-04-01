@@ -9,7 +9,7 @@ import kif
 class TestParser(unittest.TestCase):
     def test_new(self):
         p = kif.Parser()
-        self.assertIsNone(p.prev)
+        self.assertIsNone(p.current_line.prev)
 
     def test_feed_1(self):
         p = kif.Parser()
@@ -61,12 +61,12 @@ class TestParser(unittest.TestCase):
         uline0 = u"  66 ２六角(44)   ( 0:16/)"
         f = p.feed(uline0)
         self.assertIsNotNone(f)
-        self.assertIsNotNone(p.prev)
-        self.assertEqual(id(p.prev), id(f))
+        self.assertIsNotNone(p.current_line.prev)
+        self.assertEqual(id(p.current_line.prev), id(f))
         uline1 = u"  67 同　飛(28)   ( 0:2/)"
         got = p.feed(uline1)
         self.assertIsNotNone(got)
-        self.assertIsNotNone(p.prev)
+        self.assertIsNotNone(p.current_line.prev)
         self.assertEqual(id(f), id(got.prev))
         self.assert_(got.same)
         self.assertEqual(67, got.nth)
@@ -84,12 +84,12 @@ class TestParser(unittest.TestCase):
         uline0 = u"  66 ２六角(44)   ( 0:16/)"
         f = p.feed(uline0)
         self.assertIsNotNone(f)
-        self.assertIsNotNone(p.prev)
-        self.assertEqual(id(p.prev), id(f))
+        self.assertIsNotNone(p.current_line.prev)
+        self.assertEqual(id(p.current_line.prev), id(f))
         uline1 = u" 67 同成桂(67)   ( 0:0/)"
         got = p.feed(uline1)
         self.assertIsNotNone(got)
-        self.assertIsNotNone(p.prev)
+        self.assertIsNotNone(p.current_line.prev)
         self.assertEqual(id(f), id(got.prev))
         self.assert_(got.same)
         self.assertEqual(67, got.nth)
