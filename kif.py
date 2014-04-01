@@ -54,18 +54,18 @@ def make_header(uhdname, uhdbody):
 
 
 HEADER_PATTERN = u"|".join((
-    make_header(u"記録ID", ur"(P?<record_id>.+$)"),
-    make_header(u"対局ID", ur"(P?<match_id>.+$)"),
+    make_header(u"記録ID", ur"(?P<record_id>.+$)"),
+    make_header(u"対局ID", ur"(?P<match_id>.+$)"),
     make_header(u"開始日時", ur"(?P<start_datetime_year>\d\d\d\d)/(?P<start_datetime_month>\d\d)/(?P<start_datetime_day>\d\d)"),
     make_header(u"終了日時", ur"(?P<finish_datetime_year>\d\d\d\d)/(?P<finish_datetime_month>\d\d)/(?P<finish_datetime_day>\d\d)"),
     make_header(u"場所", ur"(?P<venue>.+$)"),
     make_header(u"持ち時間", ur"((?P<tc_initial>\d+)分\+(?P<tc_post>\d+)秒|(?P<tc_human_readable>.+$))"),
-    make_header(u"手合割", ur"(P?<handicap>(?P<handicap_human_readable>.+$))"),
-    make_header(u"先手", ur"(P?<white>\w+)"),
-    make_header(u"後手", ur"(P?<black>\w+)"),
-    make_header(u"消費時間", ur"(P?<time_comsumed>\w+)"),
-    make_header(u"表題", ur"(P?<title>\w+)"),
-    make_header(u"棋戦", ur"(P?<tourney>\w+)"),
+    make_header(u"手合割", ur"(?P<handicap>(?P<handicap_human_readable>.+$))"),
+    make_header(u"先手", ur"(?P<white>\w+)"),
+    make_header(u"後手", ur"(?P<black>\w+)"),
+    make_header(u"消費時間", ur"(?P<time_comsumed>\w+)"),
+    make_header(u"表題", ur"(?P<title>\w+)"),
+    make_header(u"棋戦", ur"(?P<tourney>\w+)"),
     ))
 HEADER = re.compile(HEADER_PATTERN)
 
@@ -78,8 +78,10 @@ COMMENT_PATTERN = ur"\*(?P<comment>.*$)"
 
 COMMENT = re.compile(COMMENT_PATTERN)
 
-BRANCH_PATTERN = make_header(u"変化", WSS + ur"(P?<nth>\d+)手")
+BRANCH_PATTERN = make_header(u"変化", ur"(?P<nth>\d+)手")
+#変化：103手
 
+BRANCH = re.compile(BRANCH_PATTERN)
 
 
 
@@ -108,16 +110,23 @@ class Move:
         assert isinstance(matchdict, dict)
         self.matchdict = matchdict
         self.prev = prev
+        self.next = None
 
     def __unicode__(self):
         if self.resign:
             return u"%3d resign"%(self.nth)
+        elif self.illeagal:
+            return u"%3d illeagal"%(self.nth)
         elif self.timeup:
             return u"%3d timeup"%(self.nth)
         elif self.place:
             return u"%3d %4s (持駒) => (%1d,%1d) %s"%\
                     (self.nth, self.piece, self.toX, self.toY, self.promote)
         else:
+            assert isinstance(self.fromX, int)
+            assert isinstance(self.fromY, int)
+            assert isinstance(self.toX, int)
+            assert isinstance(self.toY, int)
             return u"%3d %4s (%1d,%1d)  => (%1d,%1d) %s"%\
                     (self.nth, self.piece, self.fromX, self.fromY, self.toX, self.toY, self.promote)
 
@@ -128,6 +137,8 @@ class Move:
         value = self.matchdict[name]
         if name in ('toX', 'toY'):
             if self.resign:
+                return None
+            if self.illeagal:
                 return None
             if self.timeup:
                 return None
@@ -140,6 +151,8 @@ class Move:
             return int(value)
         elif name in ('fromX', 'fromY'):
             if self.resign:
+                return None
+            if self.illeagal:
                 return None
             if self.timeup:
                 return None
@@ -166,31 +179,28 @@ class Line:
 
     def add_move(self, d):
         move = Move(d, self.prev)
-        assert isinstance(move, Move)
-        self.prev = move
         if self.head is None:
             self.head = move
+        elif isinstance(self.prev, Move):
+            self.prev.next = move
         if move.resign or move.illeagal or move.timeup:
             self.is_closed = True
         self.moves[move.nth] = move
+        self.prev = move
         return move
 
     def __iter__(self):
         next = self.head
         while isinstance(next, Move):
             yield next
-            nth = getattr(next, "nth", None)
-            if nth is not None:
-                next = self.moves.get(next.nth+1, None)
-            else:
-                break
+            next = next.next
 
 
 class Parser:
     def __init__(self):
         self.lines = dict(mainline=Line(None))
         self.headers = {}
-        self.current_line_name = 'mainline'
+        self.current_line_name = u'mainline'
 
     @property
     def current_line(self):
@@ -219,6 +229,17 @@ class Parser:
                 if v is not None:
                     self.headers[k] = v
             return None
+
+        found = BRANCH.match(uline)
+        if found is not None:
+            print 'making line', found
+            b = Line(self.current_line)
+            nth = found.group('nth')
+            self.lines[nth] = b
+            b.prev = self.current_line.moves[int(nth)].prev
+
+            self.current_line_name = nth
+
         return None
 
 
@@ -230,7 +251,12 @@ if __name__ == "__main__":
         p = Parser()
         p.parse(f)
         print p.headers
-        print p.mainline
-        for m in p:
-            print u"%s"%(m,)
+        print p.lines.keys()
+        print p.current_line_name
+        for m in p.lines[u'mainline']:
+            print unicode(m)
+        for m in p.lines[u'103']:
+            print unicode(m)
+
+
 
