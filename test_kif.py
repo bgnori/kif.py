@@ -149,6 +149,22 @@ class TestParser(unittest.TestCase):
         self.assertFalse(got.resign)
         self.assert_(got.timeup)
 
+    def test_comment(self):
+        p = kif.Parser()
+        uline = u"   1 ７六歩(77)   ( 0:3/)"
+        got = p.feed(uline)
+        self.assertIsNotNone(got)
+        self.assertEqual(1, got.nth)
+        self.assertEqual(7, got.toX)
+        self.assertEqual(6, got.toY)
+        self.assertEqual(7, got.fromX)
+        self.assertEqual(7, got.fromY)
+        self.assertEqual(u'歩', got.piece)
+        self.assertFalse(got.promote)
+        self.assertFalse(got.timeup)
+        self.assertFalse(got.resign)
+
+
 if __name__ == "__main__":
     unittest.main()
 

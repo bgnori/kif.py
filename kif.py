@@ -2,20 +2,14 @@
 # -*- coding=utf8 -*-
 
 
-"""
+u"""
 概要:
 柿木将棋フォーマットをparseするライブラリです.
 将棋やる人は日本語読めるだろうから日本語で書いています.
 
 使い方
 
->>> import kif
->>> p = kif.Parser()
->>> with <処理したいkifファイルを開く> as f
-        for line in f:
-            m = p.feed(line)
-            <指し手の表現であるMoveのインスタンスを使って処理をする>
-
+file最後のif __name__ ~内を参照のこと
 
 正規表現とか仕様に関して次のページを起点に作成を行った.
 御礼申し上げます.
@@ -24,8 +18,8 @@ http://openlabo.blogspot.jp/2013/09/blog-post_16.html
 To Do:
  * ヘッダへの対応
  * 変化分岐への対応
-
 """
+
 
 import re
 
@@ -37,12 +31,13 @@ MOVE = re.compile(WSS+ ur"""(?P<nth>\d+)"""
                 ur"""|(?P<same>同)"""
             ur""")?"""
             + WSS + \
-            ur"""(?P<piece>歩|成?香|成?桂|成?銀|金|角|飛|王|玉|と|馬|竜)?"""
+            ur"""(?P<piece>歩|成?香|成?桂|成?銀|金|角|飛|王|玉|と|馬|竜|龍)?"""
             ur"""(?P<promote>成)?"""
             ur"""(?P<place>打)?"""
             ur"""(?P<movefrom>\((?P<fromX>\d)(?P<fromY>\d)\))?"""
             ur"""(?P<resign>投了)?"""
             ur"""(?P<timeup>切れ負け)?"""
+            ur"""(?P<illeagal>反則手)?"""
             + WSS + \
             ur"""(\("""
                 ur"""\s*(?P<minutes>\d+):(?P<seconds>\d+)"""
@@ -51,23 +46,40 @@ MOVE = re.compile(WSS+ ur"""(?P<nth>\d+)"""
             ur"""\))"""
             )
 
-HEADER = re.compile(
-    ur"""(開始日時：(?P<datetime_year>\d\d\d\d)/(?P<datetime_month>\d\d)/(?P<datetime_day>\d\d))"""
-    ur"""|"""
-    ur"""(場所：(?P<venue>.*$))"""
-    ur"""|"""
-    ur"""(?P<time_control>持ち時間：(?P<tc_initial>\d+)分\+(?P<tc_post>\d+)秒)"""
-    ur"""|"""
-    ur"""(手合割：(P?<handicap>.*$))"""
-    ur"""|"""
-    ur"""(先手：(P?<white>\w+))"""
-    ur"""|"""
-    ur"""(後手：(P?<black>\w+))"""
-    )
+COLON = ur"""[:：]""" #2つめは全角
+
+def make_header(uhdname, uhdbody):
+    u"""2つめは全角"""
+    return u"(" + uhdname + u"""[:：]""" + uhdbody + u")"
+
+
+HEADER_PATTERN = u"|".join((
+    make_header(u"記録ID", ur"(P?<record_id>.+$)"),
+    make_header(u"対局ID", ur"(P?<match_id>.+$)"),
+    make_header(u"開始日時", ur"(?P<start_datetime_year>\d\d\d\d)/(?P<start_datetime_month>\d\d)/(?P<start_datetime_day>\d\d)"),
+    make_header(u"終了日時", ur"(?P<finish_datetime_year>\d\d\d\d)/(?P<finish_datetime_month>\d\d)/(?P<finish_datetime_day>\d\d)"),
+    make_header(u"場所", ur"(?P<venue>.+$)"),
+    make_header(u"持ち時間", ur"((?P<tc_initial>\d+)分\+(?P<tc_post>\d+)秒|(?P<tc_human_readable>.+$))"),
+    make_header(u"手合割", ur"(P?<handicap>(?P<handicap_human_readable>.+$))"),
+    make_header(u"先手", ur"(P?<white>\w+)"),
+    make_header(u"後手", ur"(P?<black>\w+)"),
+    make_header(u"消費時間", ur"(P?<time_comsumed>\w+)"),
+    make_header(u"表題", ur"(P?<title>\w+)"),
+    make_header(u"棋戦", ur"(P?<tourney>\w+)"),
+    ))
+HEADER = re.compile(HEADER_PATTERN)
 
 kanji2int = dict(
         zip(u"１２３４５６７８９", range(1, 10)) 
         + zip(u"一二三四五六七八九", range(1, 10)))
+
+
+COMMENT_PATTERN = ur"\*(?P<comment>.*$)"
+
+COMMENT = re.compile(COMMENT_PATTERN)
+
+BRANCH_PATTERN = make_header(u"変化", WSS + ur"(P?<nth>\d+)手")
+
 
 
 
@@ -96,6 +108,21 @@ class Move:
         assert isinstance(matchdict, dict)
         self.matchdict = matchdict
         self.prev = prev
+
+    def __unicode__(self):
+        if self.resign:
+            return u"%3d resign"%(self.nth)
+        elif self.timeup:
+            return u"%3d timeup"%(self.nth)
+        elif self.place:
+            return u"%3d %4s (持駒) => (%1d,%1d) %s"%\
+                    (self.nth, self.piece, self.toX, self.toY, self.promote)
+        else:
+            return u"%3d %4s (%1d,%1d)  => (%1d,%1d) %s"%\
+                    (self.nth, self.piece, self.fromX, self.fromY, self.toX, self.toY, self.promote)
+
+    def __repr__(self):
+        return "< Move nth=%d...>"%(self.nth,)
 
     def __getattr__(self, name):
         value = self.matchdict[name]
@@ -129,20 +156,47 @@ class Move:
 class Parser:
     def __init__(self):
         self.prev = None
-        self.root = []
+        self.moves = {}
+        self.head = None
+        self.mainline_closed = False
         self.headers = {}
+
+    @property
+    def in_mainline(self):
+        return not self.mainline_closed
+
+    def __iter__(self):
+        next = self.head
+        while isinstance(next, Move):
+            yield next
+            nth = getattr(next, "nth", None)
+            print nth
+            if nth is not None:
+                next = self.moves.get(next.nth+1, None)
+            else:
+                break
+
 
     def parse(self, f):
         for uline in f:
-            m = self.feed(uline)
-            if m is not None:
-                self.root.append(m)
+            self.feed(uline)
 
     def feed(self, uline):
+        match = COMMENT.match(uline)
+        if match is not None:
+            self.prev.comment.append(match.group('comment'))
+            return None
+
         match = MOVE.match(uline)
         if match is not None:
             move = Move(match.groupdict(), self.prev)
             self.prev = move
+            if self.head is None:
+                self.head = move
+            if self.in_mainline:
+                self.moves[move.nth] = move
+            if move.resign or move.illeagal or move.timeup:
+                self.mainline_closed = True
             return move
         match = HEADER.match(uline)
         if match is not None:
@@ -162,16 +216,7 @@ if __name__ == "__main__":
         p = Parser()
         p.parse(f)
         print p.headers
-        for m in p.root:
-            if m.resign:
-                print u"%3d resign"%(m.nth)
-            elif m.timeup:
-                print u"%3d timeup"%(m.nth)
-            elif m.place:
-                print u"%3d %4s (持駒) => (%1d,%1d) %s"%\
-                        (m.nth, m.piece, m.toX, m.toY, m.promote)
-            else:
-                print u"%3d %4s (%1d,%1d)  => (%1d,%1d) %s"%\
-                            (m.nth, m.piece, m.fromX, m.fromY, m.toX, m.toY, m.promote)
-
+        print p.moves
+        for m in p:
+            print u"%s"%(m,)
 
