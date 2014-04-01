@@ -253,10 +253,10 @@ if __name__ == "__main__":
         print p.headers
         print p.lines.keys()
         print p.current_line_name
-        for m in p.lines[u'mainline']:
-            print unicode(m)
-        for m in p.lines[u'103']:
-            print unicode(m)
+        for k, v in p.lines.items():
+            print 'in branch:', k
+            for m in v:
+                print unicode(m)
 
 
 
