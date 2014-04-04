@@ -203,6 +203,13 @@ Specification:
         落とす駒の位置と種類を必要なだけ記述する。
         例:二枚落ちPI82HI22KA
 
+>>> d = re.match(PAT_POSITION_1, u"PI").groupdict()
+>>> d['position_initial']
+u'I'
+
+>>> bool(d['handicap'])
+False
+
 >>> d = re.match(PAT_POSITION_1, u"PI82HI22KA").groupdict()
 >>> d['position_initial']
 u'I'
@@ -263,6 +270,10 @@ Specification:
         "+"で+側(先手、下手)を、"-"で-側(後手、上手)の手番を示す。1行とする。
         手番の指定は必要である。
 
+>>> re.match(PAT_TURN , u"+").groupdict()["turn"]
+u'+'
+
+
     (5) 補足
         初期状態はすべての駒が駒箱にあり、上記(2)(3)の指定は、駒を駒箱から盤上に
         移動する動作を表現する。したがって、以上の(1)から(3)の指定で位置が決まらないものは、
@@ -273,6 +284,22 @@ Specification:
 
 方針:
     これらは正規表現でなくコードで対応する
+
+>>> d = re.match(PAT_POSITION_LINE, u"+").groupdict()
+>>> bool(d["position_line"])
+True
+
+>>> d["turn"]
+u'+'
+
+>>> d = re.match(PAT_POSITION_LINE, u"PI").groupdict()
+>>> d['position_initial']
+u'I'
+
+>>> d = re.match(PAT_POSITION_LINE, u"+").groupdict()
+>>> d['turn']
+u'+'
+
 
 
 2.6 指し手と消費時間
@@ -289,8 +316,14 @@ Specification:
 u'+'
 >>> d['move_from']
 u'33'
+>>> d['move_from_X']
+u'3'
 >>> d['move_to']
 u'24'
+>>> d['move_to_X']
+u'2'
+>>> d['move_to_Y']
+u'4'
 >>> d['move_piece']
 u'NG'
 
@@ -334,6 +367,10 @@ u'TORYO'
     正規表現だけで手に関連づけるのは辛い
     intに変換のこと
 
+方針:
+    <指し手>","<消費時間>
+    は対応する
+
 >>> d = re.match(PAT_TIME_COMSUMED, u"T10").groupdict()
 >>> d['time_consumed']
 u'10'
@@ -347,7 +384,7 @@ Specification:
     「文の途中」は「行の途中」のタイポと見なして実装する
 
 
->>> d = re.match(PAT_COMMENT, u"`This is comment.").groupdict()
+>>> d = re.match(PAT_COMMENT, u"'This is comment.").groupdict()
 >>> d['comment']
 u'This is comment.'
 
@@ -362,7 +399,7 @@ Specification:
     * 出回っているデータで問題を起こしそうなのを集めるのが面倒
     * ",/," とかも可能
     * 名前に","が含まれる場合
-    * "`,`"とかどうするのよ
+    * "','"とかどうするのよ
     * 別にデータ長が短くなる訳じゃない.
     * エディタで見る場合, 折り返し処理が重くなる可能性がある
 
@@ -373,57 +410,129 @@ Specification:
 方針:
     out of scope.
     
-
 """
 import re
-PAT_SEP = ur'^/$'
-PAT_VERSION = ur"^V(?P<version_major>\d+)(\.(?P<version_minor>\d+))?$"
-PAT_PLAYER_WHITE = ur"^N(\+(?P<white>.*$))"
-PAT_PLAYER_BLACK = ur"^N(\-(?P<black>.*$))"
-PAT_EVENT = ur"^\$EVENT:(?P<event>.*$)"
-PAT_SITE = ur"^\$SITE:(?P<site>.*$)"
-PAT_START_TIME = ur"^\$START_TIME:(?P<start_time>.*$)"
-PAT_END_TIME = ur"^\$END_TIME:(?P<end_time>.*$)"
+PAT_SEP = ur'^(?P<separator>/)$'
+PAT_VERSION = ur"V(?P<version_major>\d+)(\.(?P<version_minor>\d+))?"
+PAT_PLAYER_WHITE = ur"N(\+(?P<white>.*))"
+PAT_PLAYER_BLACK = ur"N(\-(?P<black>.*))"
+PAT_EVENT = ur"\$EVENT:(?P<event>.*)"
+PAT_SITE = ur"\$SITE:(?P<site>.*)"
+PAT_START_TIME = ur"\$START_TIME:(?P<start_time>.*)"
+PAT_END_TIME = ur"\$END_TIME:(?P<end_time>.*)"
 import time
 STRPTIME_FORMAT = ur"%Y/%m/%d %H:%M:%S"
-PAT_TIME_CONTROL = ur"^\$TIME_LIMIT:(?P<tc_hour>\d\d):(?P<tc_min>\d\d)\+(?P<tc_byo_yomi>\d\d)$"
-PAT_OPENING = ur"^\$OPENING:(?P<opening>.*$)"
+PAT_TIME_CONTROL = ur"\$TIME_LIMIT:(?P<tc_hour>\d\d):(?P<tc_min>\d\d)\+(?P<tc_byo_yomi>\d\d)"
+PAT_OPENING = ur"\$OPENING:(?P<opening>.*)"
 PAT_KOMA = ur"(FU|KY|KE|GI|KI|KA|HI|OU|TO|NY|NK|NG|UM|RY)"
 
-PAT_POSITION_1 = ur"^P(?P<position_initial>I)(?P<handicap>(\d\d\w\w)*)$"
-PAT_POSITION_2 = ur"""^P(?P<rank>\d)""" \
+PAT_POSITION_1 = ur"P(?P<position_initial>I)(?P<handicap>(\d\d\w\w)*)"
+PAT_POSITION_2 = ur"""P(?P<rank>\d)""" \
                  ur"""(?P<squares>(""" \
                     ur"""([+-]""" + PAT_KOMA + ur""")""" \
                     ur"""|([^+-]..)"""\
-                 ur"""){9})$"""
+                 ur"""){9})"""
 
-PAT_POSITION_3 = ur"""^P(?P<koma_location>[+-]((\d\d""" + PAT_KOMA + ur""")+|00AL))"""
+PAT_POSITION_3 = ur"""P(?P<koma_location>[+-]((\d\d""" + PAT_KOMA + ur""")+|00AL))"""
 
-PAT_TURN = "^[+-]$"
+PAT_TURN = "(?P<turn>[+-])"
             
-PAT_POSITION = ur"""(?P<position>"""\
-    + "|".join([PAT_POSITION_1, 
-        PAT_POSITION_2 + "{9}",
-        PAT_POSITION_3 + "*"]) \
-    + PAT_TURN + ur""")$"""
+PAT_POSITION_LINE = ur"""(?P<position_line>"""\
+    + "|".join((PAT_POSITION_1, PAT_POSITION_2, PAT_POSITION_3, PAT_TURN)) \
+    + ur""")"""
 
-PAT_NMOVE = ur"^(?P<move_player>[+-])(?P<move_from>\d\d)(?P<move_to>\d\d)(?P<move_piece>\w\w)$"
-PAT_IMOVE = ur"^%(?P<irregular_move>\w+)$"
-PAT_COMMENT = ur"^`(?P<comment>.*)$"
-PAT_TIME_COMSUMED = "^T(?P<time_consumed>\d+)$"
+PAT_NMOVE = ur"(?P<move_player>[+-])(?P<move_from>(?P<move_from_X>\d)(?P<move_from_Y>\d))(?P<move_to>(?P<move_to_X>\d)(?P<move_to_Y>\d))(?P<move_piece>\w\w)"
+PAT_IMOVE = ur"%(?P<irregular_move>\w+)"
+PAT_TIME_COMSUMED = ur"T(?P<time_consumed>\d+)"
+PAT_COMMENT = ur"'(?P<comment>.*)"
 
+
+HEADER= re.compile("|".join((
+    PAT_VERSION,
+    PAT_PLAYER_WHITE,
+    PAT_PLAYER_BLACK,
+    PAT_EVENT,
+    PAT_SITE,
+    PAT_START_TIME,
+    PAT_END_TIME,
+    PAT_TIME_CONTROL,
+    PAT_OPENING,
+    PAT_POSITION_LINE,
+    PAT_COMMENT)))
+
+BODY= re.compile("|".join((
+    PAT_SEP,
+    PAT_NMOVE,
+    PAT_IMOVE,
+    PAT_TIME_COMSUMED,
+    PAT_COMMENT)))
+
+
+class Entry:
+    pass
+
+
+
+class Parser:
+    def __init__(self):
+        self.xs = []
+        self.state = None
+        self.start_new_entry()
+
+    def start_new_entry(self):
+        self.xs.append(Entry())
+        self.state = self.handle_header
+
+    @property
+    def cur(self):
+        return self.xs[-1]
+
+    def feed(self, uline):
+        print self.state
+        self.state(uline)
+
+
+    def handle_header(self, uline):
+        m = HEADER.match(uline)
+        if m is not None:
+            d = m.groupdict()
+            self.debug_dump(d)
+            if d['turn']:
+                self.state = self.handle_moves
+
+    def handle_moves(self, uline):
+        m = BODY.match(uline)
+        if m is not None:
+            d = m.groupdict()
+            self.debug_dump(d)
+            if bool(d['separator']):
+                self.start_new_entry()
+
+
+    def debug_dump(self, d):
+        for k, v in d.items():
+            if v is not None:
+                print "    ", k, "=", v
 
 
 if __name__ == "__main__":
-    #http://joernhees.de/blog/2010/12/15/python-unicode-doctest-howto-in-a-doctest/
-    #http://stackoverflow.com/questions/1733414/how-do-i-include-unicode-strings-in-python-doctests
     import sys
-    reload(sys)
-    sys.setdefaultencoding("UTF-8")
-    
 
-    import doctest
-    doctest.testmod()
-    print 'done'
+    if len(sys.argv) == 1:
+        #http://joernhees.de/blog/2010/12/15/python-unicode-doctest-howto-in-a-doctest/
+        #http://stackoverflow.com/questions/1733414/how-do-i-include-unicode-strings-in-python-doctests
+        reload(sys)
+        sys.setdefaultencoding("UTF-8")
+
+        import doctest
+        doctest.testmod()
+        print 'done'
+    else:
+        p = Parser()
+        with open(sys.argv[1]) as f:
+            for uline in f:
+                print 'uline:', uline
+                p.feed(uline)
+
 
 
